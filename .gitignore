@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/*.db*
+data/settings.json
+snapshots/*.jpg
+dataset/images/*.jpg
+dataset/images/*.png
+dataset/labels/*.txt
+dataset/yolo/
+dataset/uploads/
+models/v*/
+models/runs/
+models/predictor.joblib
+*.pt
+test_belt.avi

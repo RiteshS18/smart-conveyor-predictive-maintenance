@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ConveyorGuard - Belt Health Monitor</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/chart.umd.min.js"></script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="brand">⛏ Conveyor<span>Guard</span><small>Industrial Belt Health &amp; Asset Telemetry SCADA</small>
+      </div>
+      <div
+        style="display:flex;align-items:center;gap:6px;background:var(--panel2);padding:4px 10px;border-radius:6px;border:1px solid var(--line);font-size:12px;">
+        <span class="led-dot led-green" id="scada-led"></span>
+        <span style="color:var(--muted);font-weight:600">ASSET:</span>
+        <select id="select-asset"
+          style="padding:2px 4px;font-size:12px;background:none;border:none;color:var(--text);font-weight:700;cursor:pointer">
+          <option value="CV-101">CV-101 Main Overland Conveyor</option>
+          <option value="CV-102">CV-102 Transfer Incline Belt</option>
+          <option value="CV-103">CV-103 Reclaim Feed Conveyor</option>
+        </select>
+      </div>
+    </div>
+    <div class="pills" style="align-items:center">
+      <span id="pill-interlock" class="pill ok"><span class="led-dot led-green"></span>Interlocks: Clear</span>
+      <span id="pill-throughput" class="pill" style="border-color:#3b9eff;color:#bcdcff">Throughput: -- T/h</span>
+      <span id="pill-stream" class="pill off">Stream: offline</span>
+      <span id="pill-sensors" class="pill off">Sensors: none</span>
+      <span id="pill-health" class="pill off">Health: --</span>
+      <button id="btn-open-report" class="btn"
+        style="padding:4px 12px;font-size:12px;border-color:var(--accent);color:var(--accent);font-weight:600">📋 Shift
+        Report</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="live" class="active">Live Monitor</button>
+    <button data-tab="sensors">Sensors &amp; Trends</button>
+    <button data-tab="alerts">Alerts</button>
+    <button data-tab="predict">Prediction</button>
+    <button data-tab="data">Dataset &amp; Training</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+
+  <main>
+    <!-- ============ LIVE ============ -->
+    <section id="tab-live" class="tab active">
+      <div class="card connect">
+        <input id="stream-url" type="text"
+          placeholder="Camera URL, e.g. http://192.168.1.10:8080/video   (or 0 for a local webcam, or a video file path)">
+        <button id="btn-connect" class="primary">Connect</button>
+        <button id="btn-disconnect">Disconnect</button>
+      </div>
+
+      <div class="grid live-grid">
+        <div class="card video-card">
+          <img id="feed" src="/video_feed" alt="live feed">
+          <div id="stream-msg" class="muted"></div>
+        </div>
+        <div class="side">
+          <div class="card health-card">
+            <svg viewBox="0 0 120 120" class="ring">
+              <circle cx="60" cy="60" r="52" class="ring-bg" />
+              <circle id="ring-fg" cx="60" cy="60" r="52" class="ring-fg" stroke-dasharray="326.7"
+                stroke-dashoffset="326.7" />
+              <text id="ring-text" x="60" y="66" text-anchor="middle">--</text>
+            </svg>
+            <div>
+              <div class="muted">Belt Health Score</div>
+              <div id="health-status" class="status-badge off">--</div>
+              <div id="health-sources" class="muted small"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h3 style="margin:0;">Conveyor Belt Lifespan Analysis</h3>
+              <span id="lifespan-condition" class="sev info">Calculating...</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; margin:4px 0 10px;">
+              <span id="lifespan-main" style="font-size:22px; font-weight:700; color:var(--accent);">--</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+              <div
+                style="background:var(--panel2); padding:8px 4px; border-radius:6px; text-align:center; border:1px solid var(--line);">
+                <div style="font-size:10px; color:var(--muted); text-transform:uppercase;">Days</div>
+                <div id="lifespan-days" style="font-weight:700; font-size:16px; margin-top:2px;">--</div>
+              </div>
+              <div
+                style="background:var(--panel2); padding:8px 4px; border-radius:6px; text-align:center; border:1px solid var(--line);">
+                <div style="font-size:10px; color:var(--muted); text-transform:uppercase;">Months</div>
+                <div id="lifespan-months" style="font-weight:700; font-size:16px; margin-top:2px;">--</div>
+              </div>
+              <div
+                style="background:var(--panel2); padding:8px 4px; border-radius:6px; text-align:center; border:1px solid var(--line);">
+                <div style="font-size:10px; color:var(--muted); text-transform:uppercase;">Years</div>
+                <div id="lifespan-years" style="font-weight:700; font-size:16px; margin-top:2px;">--</div>
+              </div>
+            </div>
+            <div class="muted small" style="margin-top:8px; font-size:11px;">Lifespan computed from belt health, current
+              load, wear rate &amp; vibration.</div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <h3 style="margin:0;">Sensors &amp; Telemetry</h3>
+              <span id="flow-badge" class="scada-badge" style="color:#3b9eff;border-color:#3b9eff">Flow: -- T/h</span>
+            </div>
+            <div id="sensor-tiles" class="tiles"></div>
+            <div
+              style="margin-top:10px; padding:8px 10px; background:var(--panel2); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <label style="font-size:12px; color:var(--muted); font-weight:600;">Manual Load Entry:</label>
+              <input id="input-manual-load" type="number" step="10" min="0" max="2500" placeholder="e.g. 450"
+                style="width:90px; padding:4px 8px; font-size:13px;">
+              <span style="font-size:12px; color:var(--muted);">kg</span>
+              <button id="btn-set-load" class="primary" style="padding:4px 12px; font-size:12px;">Set Load</button>
+              <span id="load-msg" class="muted small"></span>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Vision AI &amp; Surface Inspection</h3>
+            <div id="vision-tiles" class="tiles"></div>
+          </div>
+
+          <!-- Industrial Diagnostics & Maintenance Planning -->
+          <div class="card">
+            <h3 style="margin-bottom:8px;">Belt Structural Diagnostics</h3>
+            <div class="diag-grid">
+              <div class="diag-item">
+                <div class="label">Splice / Joint Integrity</div>
+                <div class="val" id="diag-splice" style="color:var(--green)">98% Normal</div>
+                <div class="sub">Vulcanized Joint A &amp; B</div>
+              </div>
+              <div class="diag-item">
+                <div class="label">Tracking Stability</div>
+                <div class="val" id="diag-tracking" style="color:var(--green)">±0.0% True</div>
+                <div class="sub">Idler Crown Alignment</div>
+              </div>
+              <div class="diag-item">
+                <div class="label">Top Cover Wear</div>
+                <div class="val" id="diag-cover" style="color:var(--green)">Grade 1 (Nominal)</div>
+                <div class="sub">Abrasion &amp; Impact Zone</div>
+              </div>
+              <div class="diag-item">
+                <div class="label">Drive Load Capacity</div>
+                <div class="val" id="diag-power" style="color:#3b9eff">50.0% Nominal</div>
+                <div class="sub">Head Pulley Motor</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="border-left:3px solid var(--accent)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <h3 style="margin:0;">Maintenance Advisory</h3>
+              <span class="scada-badge" style="color:var(--accent);border-color:var(--accent)">Next Audit: in 6
+                Days</span>
+            </div>
+            <p id="advisory-text" style="font-size:12px;margin:6px 0;line-height:1.4;color:var(--text)">
+              Operational condition optimal. Maintain scheduled idler lubrication and verify belt skirtboard clearances.
+            </p>
+            <button id="btn-create-workorder" class="btn"
+              style="width:100%;margin-top:6px;font-size:12px;border-color:var(--line)">
+              📋 Generate Shift Handover Report
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Latest alerts</h3>
+        <div id="live-alerts" class="alert-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ SENSORS ============ -->
+    <section id="tab-sensors" class="tab">
+      <div class="card toolbar">
+        <label>Range
+          <select id="range">
+            <option value="15">15 min</option>
+            <option value="60" selected>1 hour</option>
+            <option value="360">6 hours</option>
+            <option value="1440">24 hours</option>
+          </select>
+        </label>
+        <span class="muted small">Dashed lines = warning (yellow) / critical (red) thresholds</span>
+      </div>
+      <div class="grid charts" id="sensor-charts"></div>
+    </section>
+
+    <!-- ============ ALERTS ============ -->
+    <section id="tab-alerts" class="tab">
+      <div class="card toolbar">
+        <label>Severity <select id="f-sev">
+            <option value="">All</option>
+            <option>critical</option>
+            <option>warning</option>
+            <option>info</option>
+          </select></label>
+        <label>Status <select id="f-ack">
+            <option value="">All</option>
+            <option value="false">Unacknowledged</option>
+            <option value="true">Acknowledged</option>
+          </select></label>
+        <button id="btn-refresh-alerts">Refresh</button>
+        <a class="btn" href="/api/alerts/export.csv">Export CSV</a>
+      </div>
+      <div class="card table-wrap">
+        <table id="alert-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Severity</th>
+              <th>Type</th>
+              <th>Message</th>
+              <th>Snapshot</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ PREDICT ============ -->
+    <section id="tab-predict" class="tab">
+      <div class="grid two">
+        <div class="card center">
+          <h3>Failure risk</h3>
+          <svg viewBox="0 0 200 120" class="gauge">
+            <path d="M20 100 A80 80 0 0 1 180 100" class="g-bg" />
+            <path id="g-fg" d="M20 100 A80 80 0 0 1 180 100" class="g-fg" stroke-dasharray="251.3"
+              stroke-dashoffset="251.3" />
+            <text id="g-text" x="100" y="92" text-anchor="middle">--</text>
+          </svg>
+          <div class="kv"><span>Estimated Lifespan</span><b id="rul-lifespan" style="color:var(--accent);">--</b></div>
+          <div class="kv"><span>Days Remaining</span><b id="rul-days">--</b></div>
+          <div class="kv"><span>Months Remaining</span><b id="rul-months">--</b></div>
+          <div class="kv"><span>Years Remaining</span><b id="rul-years">--</b></div>
+          <div class="kv"><span>Anomaly detector</span><b id="anomaly">--</b></div>
+        </div>
+        <div class="card">
+          <h3>Predictor model</h3>
+          <div id="model-info" class="muted small"></div>
+          <button id="btn-retrain">Retrain predictor</button>
+          <p class="muted small">The risk model is bootstrapped on <b>synthetic</b> run-to-failure data. Replace it with
+            real labelled logs for production use. The anomaly detector learns your real "normal" from the first ~10
+            minutes of healthy live data.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Health &amp; risk trend (last hour)</h3><canvas id="chart-predict" height="90"></canvas>
+      </div>
+    </section>
+
+    <!-- ============ DATA & TRAINING ============ -->
+    <section id="tab-data" class="tab">
+      <div class="grid two">
+        <div class="card">
+          <h3>1. Collect data</h3>
+          <div class="row"><button id="btn-capture" class="primary">Capture frame now</button>
+            <label>Auto every <input id="auto-sec" type="number" min="0" value="0" style="width:70px"> s (0 =
+              off)</label>
+            <button id="btn-auto">Apply</button>
+          </div>
+          <div class="row"><label class="btn">Upload YOLO dataset (.zip)<input id="zip-file" type="file" accept=".zip"
+                hidden></label>
+            <span id="upload-msg" class="muted small"></span>
+          </div>
+          <div class="muted small" id="data-count"></div>
+        </div>
+        <div class="card">
+          <h3>2. Train &amp; deploy</h3>
+          <div class="form-grid">
+            <label>Base model <select id="t-base">
+                <option>yolov8n</option>
+                <option>yolov8s</option>
+              </select></label>
+            <label>Epochs <input id="t-epochs" type="number" value="30" min="1"></label>
+            <label>Image size <input id="t-imgsz" type="number" value="640" step="32"></label>
+            <label>Batch <input id="t-batch" type="number" value="8" min="1"></label>
+            <label>Data source <select id="t-source">
+                <option value="labeled">Labelled captures</option>
+              </select></label>
+          </div>
+          <button id="btn-train" class="primary">Start training</button>
+          <div class="progress">
+            <div id="t-bar"></div>
+          </div>
+          <div id="t-msg" class="muted small">Idle</div>
+          <canvas id="chart-train" height="90"></canvas>
+          <h4>Model versions</h4>
+          <div id="model-list" class="muted small"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Captured images <span class="muted small">(labelling UI: next phase)</span></h3>
+        <div id="gallery" class="gallery"></div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="tab-settings" class="tab">
+      <div class="grid two">
+        <div class="card">
+          <h3>Vision &amp; thresholds</h3>
+          <div id="settings-form" class="form-grid"></div>
+          <div class="row"><button id="btn-save" class="primary">Save settings</button><span id="save-msg"
+              class="muted small"></span></div>
+        </div>
+        <div class="card">
+          <h3>Simulator</h3>
+          <p class="muted small">Generates realistic temperature / vibration / load / speed / tension readings to
+            simulate operations without hardware.</p>
+          <div class="row"><button id="btn-sim">Enable simulator</button><button id="btn-fault">Inject fault</button>
+          </div>
+          <div id="sim-state" class="muted small"></div>
+          <h3 style="margin-top:20px">Real sensors</h3>
+          <p class="muted small">POST JSON to <code>/api/sensors</code> (see
+            <code>firmware/ESP32_sensor_node.ino</code>) or publish to MQTT.<br>
+            <code>{"temperature":54.2,"vibration":3.1,"load":420.5,"speed":2.4,"tension":61.0}</code>
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Shift Handover & Inspection Report Modal -->
+  <div id="modal-report" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2><span>📋</span> Shift Inspection &amp; Handover Report</h2>
+        <button class="modal-close" id="btn-close-report">&times;</button>
+      </div>
+      <div class="report-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong id="rep-line" style="font-size:16px;">CV-101 Main Overland Conveyor</strong>
+            <div class="muted small">Asset Tag: #CV-OVL-101 | Station: Discharge Terminal</div>
+          </div>
+          <div style="text-align:right">
+            <div id="rep-time" style="font-size:12px;font-weight:600">--</div>
+            <div class="muted small">Shift: Operational (Continuous)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h4 style="margin:0 0 6px">Asset Health &amp; Operational Lifespan</h4>
+        <div class="report-grid">
+          <div class="report-metric">
+            <span>Health Score</span>
+            <strong id="rep-health" style="color:var(--green)">-- / 100</strong>
+          </div>
+          <div class="report-metric">
+            <span>Remaining Lifespan</span>
+            <strong id="rep-lifespan" style="color:var(--accent)">--</strong>
+          </div>
+          <div class="report-metric">
+            <span>Condition Assessment</span>
+            <strong id="rep-condition">Optimal</strong>
+          </div>
+          <div class="report-metric">
+            <span>Operating Throughput</span>
+            <strong id="rep-throughput">-- T/h</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h4 style="margin:0 0 6px">Physical &amp; Surface Telemetry</h4>
+        <div class="report-grid">
+          <div class="report-metric"><span>Active Load</span><strong id="rep-load">-- kg</strong></div>
+          <div class="report-metric"><span>Belt Velocity</span><strong id="rep-speed">-- m/s</strong></div>
+          <div class="report-metric"><span>Frame Vibration</span><strong id="rep-vib">-- m/s²</strong></div>
+          <div class="report-metric"><span>Belt Offset (Tracking)</span><strong id="rep-offset">-- %</strong></div>
+          <div class="report-metric"><span>Surface Dust Coverage</span><strong id="rep-dust">-- %</strong></div>
+          <div class="report-metric"><span>Surface Defects Detected</span><strong id="rep-defects">0</strong></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h4 style="margin:0 0 6px">Maintenance Advisory &amp; Recommended Actions</h4>
+        <p id="rep-advisory" style="font-size:13px;line-height:1.5;margin:4px 0" class="muted">
+          System operating within baseline parameters. Maintain standard preventative maintenance intervals.
+        </p>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:8px">
+        <button id="btn-print-report" class="primary" style="padding:8px 16px;">🖨 Print / Export PDF</button>
+        <button id="btn-dismiss-report" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+
+</html>
